@@ -6,6 +6,7 @@ TagManager:
   tags:
   - Bottle
   - Balloon
+  - Gun
   layers:
   - Default
   - TransparentFX

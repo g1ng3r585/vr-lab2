@@ -6,21 +6,54 @@ using UnityEngine.InputSystem;
 
 public class GestionFusil : MonoBehaviour
 {
+    // gun
+    private GameObject gunObject;
+    private Vector3 initialGunPosition;
+    private Quaternion initialGunRotation;
+
     // rayon
+    [SerializeField] private Transform gun;
     [SerializeField] private Transform origin;
     private float distance = 10f;
+    private Transform initialGunTransform;
 
     // sons
     [SerializeField] private AudioSource pew;
     [SerializeField] private AudioSource pouf;
 
     // gestion du temps
+    private bool isPlaying = false;
     private float startTime;
     private float endTime;
-    private bool firstShotFired;
-    private List<float> balloonExplosionTimes;
-
+    private float bestTime;
     private InputAction action;
+
+    // balloons
+    private float balloonCount = 18; 
+    private List<GameObject> balloons; 
+
+
+    // ui
+    private TextMeshProUGUI temps;
+    private TextMeshProUGUI meilleurTemps;
+
+
+    public void Start()
+    {
+        temps = GameObject.Find("Temps").GetComponent<TextMeshProUGUI>();
+        meilleurTemps = GameObject.Find("MeilleurTemps").GetComponent<TextMeshProUGUI>();
+        bestTime = PlayerPrefs.GetFloat("BestTime", 20000);
+        meilleurTemps.text = bestTime == 20000 ? "Meilleur temps: Aucun" : $"Meilleur temps: {bestTime:F3}";
+        initialGunTransform = gun;
+
+        // instantiate list of balloons
+        balloons = new List<GameObject>(GameObject.FindGameObjectsWithTag("Balloon"));
+
+        gunObject = GameObject.FindWithTag("Gun");
+        initialGunPosition = gunObject.transform.position;
+        initialGunRotation = gunObject.transform.rotation;
+    }
+
 
     public void OnEnable()
     {
@@ -34,8 +67,6 @@ public class GestionFusil : MonoBehaviour
         // Trigger press logic
         if (context.ReadValue<float>() > 0.5f)
         {
-            // Handle the trigger press here
-            // For example, you can call a shooting function.
             Fire();
         }
     }
@@ -46,21 +77,9 @@ public class GestionFusil : MonoBehaviour
         action.performed -= TriggerPerformed;
     }
 
-    private void Start()
-    {
-        balloonExplosionTimes = new List<float>();
-        firstShotFired = false;
-    }
-
     private void Fire()
     {
-        if (!firstShotFired)
-        {
-            startTime = Time.time;
-            firstShotFired = true;
-        }
-
-        pew.Play();
+        
         Ray ray = new Ray(origin.position, origin.forward);
 
         RaycastHit hit;
@@ -69,30 +88,73 @@ public class GestionFusil : MonoBehaviour
         {
             if (hit.collider.gameObject.CompareTag("Balloon"))
             {
-                Destroy(hit.collider.gameObject);
-                RecordBalloonExplosionTime(Time.time);
+                --balloonCount;
+                if (balloonCount == 0) End();
+                hit.collider.gameObject.SetActive(false);
                 pouf.Play();
             }
         }
     }
 
-    private void RecordBalloonExplosionTime(float time)
+    public void PlayPew()
     {
-        balloonExplosionTimes.Add(time);
-        endTime = time;
+        pew.Play();
     }
 
-    private void CalculateTimeDifference()
+    private void StartTimer()
     {
-        if (firstShotFired && balloonExplosionTimes.Count > 0)
+        if (isPlaying == false)
+        startTime = Time.time;
+        isPlaying = true;
+    }
+
+    private void End()
+    {
+        isPlaying = false;
+        endTime =  Time.time - startTime;
+        temps.text = $"Temps: {endTime:F3}";
+        if (endTime < bestTime)
         {
-            float timeDifference = endTime - startTime;
-
-            // update text's content
-            GameObject element = GameObject.Find("Temps");
-            string stringg = "Temps: " + timeDifference;
-            element.GetComponent<TextMeshPro>().text = stringg;
-
+            meilleurTemps.text = $"Temps: {endTime:F3}";
+            PlayerPrefs.SetFloat("BestTime", endTime);
         }
     }
+
+    private void Update()
+    {
+        if (isPlaying == true && balloonCount > 0)
+        {
+            temps.text = $"Temps: {(Time.time - startTime):F3}";
+        }
+
+    }
+
+    public void Restart()
+    {
+        if (isPlaying == true) isPlaying = false;
+        // reset displayed time to 0
+        temps.text = $"Temps: 0,000";
+        // reset start time
+        startTime = Time.time;
+        balloonCount = 18;
+
+        // reactivate balloons
+        for (int i = 0; i < balloonCount; i++)
+        {
+            balloons[i].gameObject.SetActive(true);
+        }
+
+
+        if (gunObject != null)
+        {
+            gunObject.transform.position = initialGunPosition;
+            gunObject.transform.rotation = initialGunRotation;
+        }
+        else
+        {
+            Debug.Log("Gun object is null. Make sure it is properly referenced in the scene.");
+        }
+
+    }
+
 }
